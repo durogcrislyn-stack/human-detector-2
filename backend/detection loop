@@ -67,6 +67,10 @@ class DetectionEngine:
         self._session_start: float | None = None
         self._screenshot_count = 0
 
+        # Time tracking
+        self.people_log = {}  # {track_id: {"time_in": datetime, "time_out": datetime}}
+        self.led_status = False  # True if at least one person is currently detected
+
         # settings
         self._confidence = 0.45
         self._camera_index = 0
@@ -383,6 +387,23 @@ class DetectionEngine:
 
                         if track_id >= 0:
                             seen_ids.add(track_id)
+
+                        # ------------------------
+                        # Time tracking & LED
+                        # ------------------------
+                        with self._lock:
+                            # Time In: add new detected IDs
+                             for track_id in seen_ids:
+                                if track_id not in self.people_log:
+                                    self.people_log[track_id] = {"time_in": datetime.now(), "time_out": None}
+
+                        # Time Out: mark IDs that disappeared
+                        for track_id in list(self.people_log.keys()):
+                            if track_id not in seen_ids and self.people_log[track_id]["time_out"] is None:
+                                self.people_log[track_id]["time_out"] = datetime.now()
+
+                        # LED status ON if at least one person detected
+                        self.led_status = people_count > 0
 
                         # Face recognition (async, cached per track_id)
                         recognized_name = None
